@@ -92,7 +92,7 @@ public:
         {
             ImGui::Text("Viewport Dimensions: (%.2f, %.2f)", camera.viewport.width, camera.viewport.height);
             ImGui::Text("Theta: %2.f, Phi: %.2f", camera.theta, camera.phi);
-            DEBUG_VEC3(camera.lookfrom);
+            DEBUG_VEC3(camera.position);
             DEBUG_VEC3(camera.viewport.pixelDH);
             DEBUG_VEC3(camera.viewport.pixelDV);
             DEBUG_VEC3(camera.viewport.pixelOrigin);
@@ -132,8 +132,8 @@ public:
         // Create ray from window coordinates
         glm::vec2 pos = glm::vec2(windowCoord.x, windowCoord.y);
         glm::vec3 pixelSample = camera.viewport.pixelOrigin + (pos.x * camera.viewport.pixelDH) + (pos.y * camera.viewport.pixelDV);
-        glm::vec3 rayPos = camera.lookfrom;
-        glm::vec3 rayDir = pixelSample - camera.lookfrom;
+        glm::vec3 rayPos = camera.position;
+        glm::vec3 rayDir = pixelSample - camera.position;
 
         auto hitSphere = [rayDir, rayPos](Sphere sphere, float *t) -> bool
         {
@@ -179,7 +179,14 @@ public:
         }
 
         if (!doesHit)
+        {
             selectedSphere = -1;
+            camera.selectSphere(NULL);
+        }
+        else
+        {
+            camera.selectSphere(&(spheres[selectedSphere]));
+        }
     }
 
     bool isSphereSelected(Sphere **sphere)

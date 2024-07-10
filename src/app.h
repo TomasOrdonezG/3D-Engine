@@ -132,7 +132,7 @@ private:
         ImGui::End();
 
         ImGui::Begin("Camera");
-        cameraMenu();
+        renderer.camera.settingsGUI();
         ImGui::End();
 
         ImGui::Begin("Controls");
@@ -157,18 +157,6 @@ private:
     {
         ImGui::Text("%20s: %-10.4f", "FPS", ImGui::GetIO().Framerate);
         ImGui::Text("%20s: %-10d", "Frames sampled", renderer.renderedFrameCount);
-    }
-
-    void cameraMenu()
-    {
-        bool updated = false;
-        Camera *camera = &(renderer.camera);
-
-        updated |= ImGui::SliderFloat("Focal Length", &(camera->focalLength), 0.1, 10.0);
-        updated |= ImGui::SliderFloat("Theta", &(camera->theta), 0.0, (float)2*PI);
-        updated |= ImGui::SliderFloat("Phi", &(camera->phi), 0.0, (float)PI);
-        
-        if (updated) camera->onUpdate();
     }
 
     void controlsMenu()
@@ -271,32 +259,15 @@ private:
             renderer.camera.updateDimensions(sceneWindow.aspectRatio);
         }
 
+        // Camera events
+        renderer.camera.events(&sceneWindow, lastMousePos, isMouseDragging);
+
         // Check if cursor is inside window
         bool mouseInsideWindow = mousePosRelative.x >= 0 && mousePosRelative.x <= windowSize.x && mousePosRelative.y >= 0 && mousePosRelative.y <= windowSize.y;
         if (!mouseInsideWindow || !ImGui::IsWindowFocused())
         {
             isMouseDragging = false;
             return;
-        }
-        
-        // Pan camera on mouse drag
-        if (isMouseDragging)
-        {
-            // Calculate change in mouse position
-            ImVec2 dpos(mousePos.x - lastMousePos.x, mousePos.y - lastMousePos.y);
-
-            // Calculate change in angle
-            float dtheta = ((float)dpos.x / sceneWindow.width) * (2 * PI) * 0.8;
-            float dphi = ((float)dpos.y / sceneWindow.height) * (2 * PI) * 0.2;
-
-            // Update camera position
-            renderer.camera.theta += dtheta;
-            if (renderer.camera.theta <= 0.0) renderer.camera.theta = 2*PI;
-            else if (renderer.camera.theta > 2*PI) renderer.camera.theta = 0.0;
-
-            if (renderer.camera.phi >= 0.0 && renderer.camera.phi < PI) renderer.camera.phi -= dphi;
-
-            renderer.camera.onUpdate();
         }
         
         // Mouse down and release events
@@ -318,18 +289,6 @@ private:
         {
             renderer.selectSphere(glm::ivec2((int)mousePosRelative.x, (int)(windowSize.y - mousePosRelative.y)));
         }
-
-        // Renderer zoom in (change in focal length)
-        float yOffset = -ImGui::GetIO().MouseWheel;
-        if (yOffset)
-        {
-            Sphere *selected = renderer.getSelectedSphere();
-            float scale = (selected != NULL) ? selected->radius / 5.0 : 0.1;
-            renderer.camera.distance += yOffset * scale;
-            if (renderer.camera.distance < 0.1) renderer.camera.distance = 0.1;
-            renderer.camera.onUpdate();
-        }
-
     }
 
     void initImGui()
