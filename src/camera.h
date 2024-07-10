@@ -18,14 +18,12 @@ public:
     glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
     glm::vec3 u, v, w;                                      // Basis vectors for the camera frame
     float focalLength = 3.0;
+    float theta = 0.0, phi = PI / 2.0f;                     // Panning angles for first person mode, or spherical coordinates for third person mode
+    float distance = 5.0;                                   // Last sperical coordinate for third person mode (is calculated even if on first person mode)
 
     // Third person camera attributes
     glm::vec3 lookat = glm::vec3(0.0, 0.0, 0.0);
-    float distance = 5.0, theta = 0.0, phi = PI / 2.0f;     // Spherical coordinates for third person mode
     Sphere *selectedSphere = NULL;
-
-    // First person camera attributes
-
 
     // Viewport
     struct Viewport {
@@ -66,6 +64,7 @@ public:
             else if (cameraMode == FIRST_PERSON)
             {
                 w = glm::vec3(cos(theta)*sin(phi), cos(phi), sin(theta)*sin(phi));
+                distance = glm::distance(lookat, position);
             }
 
             u = glm::normalize(glm::cross(up, w));
@@ -116,7 +115,7 @@ public:
     {
         bool updated = false;
 
-        ImGui::SliderInt("Camera Mode", (int*)(&cameraMode), 0, 1, (cameraMode == FIRST_PERSON) ? "First person" : "Third person");
+        updated |= ImGui::SliderInt("Camera Mode", (int*)(&cameraMode), 0, 1, (cameraMode == FIRST_PERSON) ? "First person" : "Third person");
         updated |= ImGui::DragFloat("Focal Length", &focalLength, 0.1);
 
         if (cameraMode == Camera::FIRST_PERSON)
