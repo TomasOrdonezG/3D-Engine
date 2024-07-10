@@ -60,7 +60,6 @@ private:
 
             if (glCheckFramebufferStatus(GL_FRAMEBUFFER) != GL_FRAMEBUFFER_COMPLETE)
                 std::cerr << "Frame buffer not complete" << std::endl;
-
         }
         
         // Unbind texture and frame buffers

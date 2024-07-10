@@ -14,7 +14,7 @@ public:
 
     void init()
     {
-        shader = Shader("C:/Users/samal/OneDrive/Desktop/Programs/C++/GLFW + GLAD setup/src/shaders/quad.vert", "C:/Users/samal/OneDrive/Desktop/Programs/C++/GLFW + GLAD setup/src/shaders/quad.frag");
+        shader = Shader("./src/shaders/quad.vert", "./src/shaders/quad.frag");
 
         // Vertex data for a full-screen quad
         float quadVertices[] = {

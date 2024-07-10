@@ -17,31 +17,28 @@ struct Sphere { Material material; vec3 position; float radius; };
 struct RayHit { vec3 normal; float t; vec3 intersection; bool selected; Material material; };
 
 // * Uniforms
+
+// TODO: Camera UBO
+uniform vec3 lookfrom;
+
+// TODO: Viewport UBO
+uniform vec3 pixelDH;
+uniform vec3 pixelDV;
+uniform vec3 pixelOrigin;
+
+// TODO: Renderer settings UBO
+uniform bool doTemporalAntiAliasing;
+uniform bool doGammaCorrection;
+uniform bool test;
+uniform bool sky;
+uniform float u_time;
+uniform int maxRayBounce;
+uniform int renderedFrameCount;
+uniform int samplesPerPixel;
 uniform sampler2D previousFrame;
 
-layout(std140) uniform UniformBlock {
-
-    vec3 lookfrom;
-    vec3 pixelDH;
-    vec3 pixelDV;
-    vec3 pixelOrigin;
-
-    float u_time;
-
-    int maxRayBounce;
-    int renderedFrameCount;
-    int samplesPerPixel;
-
-    bool test;
-    bool sky;
-    bool doGammaCorrection;
-    bool doTemporalAntiAliasing;
-
-};
-
-layout(std140) uniform Spheres {
-    Sphere spheres[MAX_SPHERE_AMOUNT];
-};
+// Scene UBO (only an array of spheres for now)
+layout(std140) uniform Spheres { Sphere spheres[MAX_SPHERE_AMOUNT]; };
 uniform int spheresSize;
 uniform int selectedSphere;
 
@@ -71,7 +68,7 @@ bool hitSphere(Sphere sphere, Ray ray, out RayHit hit) {
     hit.intersection = ray.position + hit.t*ray.direction;
     hit.material = sphere.material;
 
-    vec3 outwardNormal = (hit.intersection - sphere.position) / sphere.radius;
+    vec3 outwardNormal = (hit.intersection - sphere.position) / sphere.radius;  // Normalizes it
     bool frontFace = dot(ray.direction, outwardNormal) < 0;
     hit.normal = frontFace ? outwardNormal : -outwardNormal;
 
@@ -129,43 +126,48 @@ bool findClosestIntersection(Ray ray, out RayHit closestHit) {
     return doesHit;
 }
 
-vec3 traceRay(Ray ray) {
+vec3 missColour(Ray ray, vec3 rayColour) {
 
-    vec3 lightDir = vec3(-1.0, -1.0, -1.0);
+    if (sky) {
+
+        vec3 unitDirection = normalize(ray.direction);
+        float alpha = 0.5*(unitDirection.y + 1.0);
+        return ((1.0 - alpha)*vec3(1.0) + alpha*vec3(0.5, 0.7, 1.0))*rayColour;
+    }
+    else {
+
+        return vec3(0.0)*rayColour;
+    }
+}
+
+vec4 traceRay(Ray ray) {
 
     vec3 incomingColour = vec3(0.0);
     vec3 rayColour = vec3(1.0);
     
-    Ray currentRay = ray;
-    RayHit closestHit;
+    RayHit hit;
     
     for (int i = 0; i < maxRayBounce; i++) {
 
-        if (findClosestIntersection(currentRay, closestHit)) {
-
-            Material material = closestHit.material;
-            vec3 normal = normalize(closestHit.normal);
-            currentRay = Ray(closestHit.intersection + normal*0.001, normal + material.roughness*randGaussianUnitVec());
-
-            vec3 emittedLight = material.emissionColour * material.emissionStrength;
-            incomingColour += emittedLight * rayColour;
-            rayColour *= material.albedo*material.reflectivity*(max(dot(normalize(-lightDir), normal), 0.0));
-
-        } else {
-
-            if (sky) {
-
-                vec3 unitDirection = normalize(ray.direction);
-                float alpha = 0.5*(unitDirection.y + 1.0);
-                incomingColour += ((1.0 - alpha)*vec3(1.0) + alpha*vec3(0.5, 0.7, 1.0))*rayColour;
-            }
-            else incomingColour += vec3(0.0)*rayColour;
-
+        if (!findClosestIntersection(ray, hit)) {
+            incomingColour += missColour(ray, rayColour);
             break;
         }
+
+        // Accumulate light colour
+        Material material = hit.material;
+        vec3 emittedLight = material.emissionColour * material.emissionStrength;
+        incomingColour += emittedLight * rayColour;
+        rayColour *= material.albedo*material.reflectivity;
+
+        // Bounce ray
+        // TODO: Fix the fact that some rays bounce into the inside of the sphere
+        vec3 microfacetNormal = hit.normal + material.roughness*randGaussianUnitVec();
+        ray.position = hit.intersection + hit.normal*0.0001;
+        ray.direction = reflect(ray.direction, microfacetNormal);
     }
 
-    return incomingColour;
+    return vec4(incomingColour, 1.0);
 }
 
 // * Main
@@ -182,7 +184,7 @@ void main() {
         Ray ray = Ray(lookfrom, pixelSample - lookfrom);
 
         // Calculate ray colour
-        currentColour += vec4(traceRay(ray), 1.0);
+        currentColour += traceRay(ray);
     }
     currentColour /= samplesPerPixel;
     currentColour = doGammaCorrection ? vec4(gammaCorrect(currentColour.xyz), 1.0) : currentColour;

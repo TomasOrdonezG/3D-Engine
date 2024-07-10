@@ -16,6 +16,7 @@
 #include "shader.h"
 #include "window.h"
 #include "fullQuad.h"
+#include "renderer.h"
 #include "camera.h"
 #include "sphere.h"
 #include "material.h"
@@ -55,7 +56,7 @@ public:
 
         initImGui();
         quad.init();
-        camera = Camera(2.0f, sceneWindow.aspectRatio);
+        renderer = Renderer(sceneWindow.aspectRatio);
     }
 
     ~App()
@@ -75,7 +76,7 @@ public:
             beginFrame();
             gui();
 
-            ImGui::Begin("OpenGL Scene", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
+            ImGui::Begin("Viewport", nullptr, ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoScrollWithMouse);
             {
                 // Get window size and position
                 ImVec2 windowSize = ImGui::GetContentRegionAvail();
@@ -93,7 +94,7 @@ public:
                 glClear(GL_COLOR_BUFFER_BIT);
                 
                 // Render the scene
-                camera.renderScene(&sceneWindow, 0, &quad);
+                renderer.renderScene(&sceneWindow, 0, &quad);
 
                 // Unbind current FBO and previous texture
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
@@ -116,8 +117,11 @@ private:
     GLFWwindow *window;
     FullQuad quad;
     Window sceneWindow;
-    Camera camera;
+    Renderer renderer;
     bool pingpong = false;
+
+
+    // * GUI
 
     void gui()
     {
@@ -127,13 +131,17 @@ private:
         dataGui();
         ImGui::End();
 
+        ImGui::Begin("Camera");
+        cameraMenu();
+        ImGui::End();
+
         ImGui::Begin("Controls");
-        controlsGui();
+        controlsMenu();
         ImGui::End();
 
         // Menus for selected spheres
         Sphere *sphere;
-        if (camera.isSphereSelected(&sphere))
+        if (renderer.isSphereSelected(&sphere))
         {
             ImGui::Begin("Sphere");
             sphereMenu(sphere);
@@ -147,57 +155,71 @@ private:
 
     void dataGui()
     {
-        ImGui::Text("%20s: %10.4f", "FPS", ImGui::GetIO().Framerate);
-        ImGui::Text("%20s: %10d", "Frames sampled", camera.data.renderedFrameCount);
+        ImGui::Text("%20s: %-10.4f", "FPS", ImGui::GetIO().Framerate);
+        ImGui::Text("%20s: %-10d", "Frames sampled", renderer.renderedFrameCount);
     }
 
-    void controlsGui()
+    void cameraMenu()
     {
-        bool resetAA = false;
-        bool cameraMoved = false;
+        bool updated = false;
+        Camera *camera = &(renderer.camera);
 
-        resetAA |= ImGui::Checkbox("Test", (bool*)&(camera.data.test));
-        resetAA |= ImGui::Checkbox("Sky", (bool*)&(camera.data.sky));
-        resetAA |= ImGui::Checkbox("Gamma Correct", (bool*)&(camera.data.doGammaCorrection));
-        resetAA |= ImGui::Checkbox("Temporal Anti-Aliasing", &(camera.doTAA));
+        updated |= ImGui::SliderFloat("Focal Length", &(camera->focalLength), 0.1, 10.0);
+        updated |= ImGui::SliderFloat("Theta", &(camera->theta), 0.0, (float)2*PI);
+        updated |= ImGui::SliderFloat("Phi", &(camera->phi), 0.0, (float)PI);
+        
+        if (updated) camera->onUpdate();
+    }
 
-        resetAA |= ImGui::SliderInt("Max Tracing Depth", &(camera.data.maxRayBounce), 1, 100);
-        resetAA |= ImGui::SliderInt("Samples per pixel", &(camera.data.samplesPerPixel), 1, 20);
+    void controlsMenu()
+    {
+        bool updated = false;
 
-        cameraMoved |= ImGui::SliderFloat("Focal Length", &(camera.focalLength), 0.1, 10.0);
-        cameraMoved |= ImGui::SliderFloat("Theta", &(camera.theta), 0.0, (float)2*PI);
-        cameraMoved |= ImGui::SliderFloat("Phi", &(camera.phi), 0.0, (float)PI);
+        updated |= ImGui::Checkbox("Test", (bool*)&(renderer.test));
+        updated |= ImGui::Checkbox("Sky", (bool*)&(renderer.sky));
+        updated |= ImGui::Checkbox("Gamma Correct", (bool*)&(renderer.doGammaCorrection));
+        updated |= ImGui::Checkbox("Temporal Anti-Aliasing", &(renderer.doTAA));
 
-        resetAA |= cameraMoved;
-        if (resetAA) camera.resetAntiAliasing();
-        if (cameraMoved) camera.wasMoved();
+        updated |= ImGui::SliderInt("Max Tracing Depth", &(renderer.maxRayBounce), 1, 100);
+        updated |= ImGui::SliderInt("Samples per pixel", &(renderer.samplesPerPixel), 1, 20);
+
+        if (updated) renderer.onUpdate();
     }
 
     void sphereMenu(Sphere *sphere)
     {
-        bool resetAA = false;
+        bool updated = false;
 
-        resetAA |= ImGui::SliderFloat3("Position", &(sphere->position[0]), -10.0, 10.0);
-        resetAA |= ImGui::SliderFloat("Radius", &(sphere->radius), 0.01, 10.0);
+        updated |= ImGui::DragFloat3("Position", &(sphere->position[0]), 0.1);
+        updated |= ImGui::DragFloat("Radius", &(sphere->radius), 0.1, 0.1, 100.0);
 
-        if (resetAA) camera.resetAntiAliasing();
+        if (ImGui::Button("Focus"))
+        {
+            updated = true;
+            renderer.camera.focusSphere(renderer.getSelectedSphere());
+        }
+
+        if (updated) renderer.onUpdate();
     }
 
     void materialMenu(Material *mat)
     {
-        bool resetAA = false;
+        bool updated = false;
 
-        resetAA |= ImGui::ColorEdit3("Albedo", &(mat->albedo[0]));
-        resetAA |= ImGui::SliderFloat("Roughness", &(mat->roughness), 0.0, 1.0);
-        resetAA |= ImGui::SliderFloat("Reflectivity", &(mat->reflectivity), 0.0, 1.0);
+        updated |= ImGui::ColorEdit3("Albedo", &(mat->albedo[0]));
+        updated |= ImGui::SliderFloat("Roughness", &(mat->roughness), 0.0, 1.0);
+        updated |= ImGui::SliderFloat("Reflectivity", &(mat->reflectivity), 0.0, 1.0);
 
         ImGui::SeparatorText("Light emission");
 
-        resetAA |= ImGui::ColorEdit3("Emission Colour", &(mat->emissionColour[0]));
-        resetAA |= ImGui::SliderFloat("Emission Strength", &(mat->emissionStrength), 0.0, 100.0);
+        updated |= ImGui::ColorEdit3("Emission Colour", &(mat->emissionColour[0]));
+        updated |= ImGui::SliderFloat("Emission Strength", &(mat->emissionStrength), 0.0, 100.0);
 
-        if (resetAA) camera.resetAntiAliasing();
+        if (updated) renderer.camera.onUpdate();
     }
+
+
+    // * General app methods
 
     void beginFrame()
     {
@@ -246,8 +268,7 @@ private:
         if (windowChangedSize)
         {
             sceneWindow.updateDimensions((int)windowSize.x, (int)windowSize.y);
-            camera.updateDimensions(sceneWindow.aspectRatio);
-            camera.resetAntiAliasing();
+            renderer.camera.updateDimensions(sceneWindow.aspectRatio);
         }
 
         // Check if cursor is inside window
@@ -269,15 +290,13 @@ private:
             float dphi = ((float)dpos.y / sceneWindow.height) * (2 * PI) * 0.2;
 
             // Update camera position
-            camera.resetAntiAliasing();
+            renderer.camera.theta += dtheta;
+            if (renderer.camera.theta <= 0.0) renderer.camera.theta = 2*PI;
+            else if (renderer.camera.theta > 2*PI) renderer.camera.theta = 0.0;
 
-            camera.theta += dtheta;
-            if (camera.theta <= 0.0) camera.theta = 2*PI;
-            else if (camera.theta > 2*PI) camera.theta = 0.0;
+            if (renderer.camera.phi >= 0.0 && renderer.camera.phi < PI) renderer.camera.phi -= dphi;
 
-            if (camera.phi >= 0.0 && camera.phi < PI) camera.phi -= dphi;
-
-            camera.wasMoved();
+            renderer.camera.onUpdate();
         }
         
         // Mouse down and release events
@@ -297,19 +316,18 @@ private:
         // Mouse click events
         if (leftMouseClick)
         {
-            camera.selectSphere(glm::ivec2((int)mousePosRelative.x, (int)(windowSize.y - mousePosRelative.y)));
+            renderer.selectSphere(glm::ivec2((int)mousePosRelative.x, (int)(windowSize.y - mousePosRelative.y)));
         }
 
-        // Camera zoom in (change in focal length)
+        // Renderer zoom in (change in focal length)
         float yOffset = -ImGui::GetIO().MouseWheel;
         if (yOffset)
         {
-            Sphere *selected = camera.getSelectedSphere();
+            Sphere *selected = renderer.getSelectedSphere();
             float scale = (selected != NULL) ? selected->radius / 5.0 : 0.1;
-            camera.distance += yOffset * scale;
-            if (camera.distance < 0.1) camera.distance = 0.1;
-            camera.resetAntiAliasing();
-            camera.wasMoved();
+            renderer.camera.distance += yOffset * scale;
+            if (renderer.camera.distance < 0.1) renderer.camera.distance = 0.1;
+            renderer.camera.onUpdate();
         }
 
     }
