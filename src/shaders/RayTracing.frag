@@ -97,6 +97,10 @@ vec3 randGaussianVec() {
 vec3 randGaussianUnitVec() {
     return normalize(randGaussianVec());
 }
+vec3 randInHemisphere(vec3 normal) {
+    vec3 randomDir = randGaussianUnitVec();
+    return (dot(randomDir, normal) > 0.0) ? randomDir : -randomDir;
+}
 vec3 gammaCorrect(vec3 linear) {
     return vec3(sqrt(linear.x), sqrt(linear.y), sqrt(linear.z));
 }
@@ -131,7 +135,7 @@ vec3 missColour(Ray ray, vec3 rayColour) {
     if (sky) {
 
         vec3 unitDirection = normalize(ray.direction);
-        float alpha = 0.5*(unitDirection.y + 1.0);
+        float alpha = 0.5*(2*unitDirection.y + 1.0);
         return ((1.0 - alpha)*vec3(1.0) + alpha*vec3(0.5, 0.7, 1.0))*rayColour;
     }
     else {
@@ -161,10 +165,9 @@ vec4 traceRay(Ray ray) {
         rayColour *= material.albedo*material.reflectivity;
 
         // Bounce ray
-        // TODO: Fix the fact that some rays bounce into the inside of the sphere
-        vec3 microfacetNormal = hit.normal + material.roughness*randGaussianUnitVec();
         ray.position = hit.intersection + hit.normal*0.0001;
-        ray.direction = reflect(ray.direction, microfacetNormal);
+        vec3 perfectReflection = reflect(ray.direction, hit.normal);
+        ray.direction = mix(perfectReflection, randInHemisphere(hit.normal), material.roughness);
     }
 
     return vec4(incomingColour, 1.0);
