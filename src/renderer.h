@@ -20,12 +20,12 @@ public:
     Camera camera;
 
     // Renderer settings
+    int maxRayBounce = 5;
+    int sky = 0;
     float u_time;
-    int maxRayBounce = 50;
     int renderedFrameCount = 0;
     int samplesPerPixel = 1;
     int test = 0;
-    int sky = 1;
     int doGammaCorrection = 1;
     int doTemporalAntiAliasing = 1;
 
@@ -234,12 +234,15 @@ private:
         glBindBufferBase(GL_UNIFORM_BUFFER, uboSpheresBindingPoint, uboSpheres);
 
         // Create the world!
-        Dielectric orange(glm::vec3(0.5, 0.1, 0.0), 1.0, 1.0);
-        Dielectric blue(glm::vec3(0.1, 0.95, 0.8), 1.0, 1.0);
+        Dielectric orange(glm::vec3(0.9, 0.5, 0.0), 1.0, 0.5);
+        Dielectric blue(glm::vec3(0.1, 0.95, 0.8), 1.0, 0.5);
         Mirror mirror(1.0);
+        Light light(glm::vec3(1.0, 1.0, 1.0), 20.0);
         
-        spheres.push_back(Sphere(orange, glm::vec3(0.0, 0.0, 0.0), 1.0));
-        spheres.push_back(Sphere(blue, glm::vec3(0.0, -51, 0.0), 50.0));
+        spheres.push_back(Sphere(blue, glm::vec3(0.0, -2000, 0.0), 2000.0));
+        spheres.push_back(Sphere(light,  glm::vec3(-4.3, 14, -15.5), 7.0));
+        spheres.push_back(Sphere(orange, glm::vec3(0.0, 1.0, 0.0), 1.0));
+        spheres.push_back(Sphere(mirror, glm::vec3(2.5, 1.5, 0.0), 1.5));
     }
 
 };

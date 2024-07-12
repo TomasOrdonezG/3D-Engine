@@ -11,18 +11,18 @@ public:
 
     // States
     bool didUpdateThisFrame = true;
-    enum CameraMode { THIRD_PERSON = 0, FIRST_PERSON = 1 } cameraMode = THIRD_PERSON;
+    enum CameraMode { THIRD_PERSON = 0, FIRST_PERSON = 1 } cameraMode = FIRST_PERSON;
 
     // Attributes
-    glm::vec3 position = glm::vec3(-5.0, 0.0, 0.0);
+    glm::vec3 position = glm::vec3(-2.0, 4.4, 8.2);
     glm::vec3 up = glm::vec3(0.0, 1.0, 0.0);
     glm::vec3 u, v, w;                                      // Basis vectors for the camera frame
     float focalLength = 3.0;
-    float theta = 0.0, phi = PI / 2.0f;                     // Panning angles for first person mode, or spherical coordinates for third person mode
-    float distance = 5.0;                                   // Last sperical coordinate for third person mode (is calculated even if on first person mode)
+    float theta = 2.0, phi = 1.2;                           // Panning angles for first person mode, or spherical coordinates for third person mode
+    float distance = 10.0;                                   // Last sperical coordinate for third person mode (is calculated even if on first person mode)
 
     // Third person camera attributes
-    glm::vec3 lookat = glm::vec3(0.0, 0.0, 0.0);
+    glm::vec3 lookat = glm::vec3(0.0, 1.0, 0.0);
     Sphere *selectedSphere = NULL;
 
     // Viewport
@@ -117,6 +117,8 @@ public:
 
         updated |= ImGui::SliderInt("Camera Mode", (int*)(&cameraMode), 0, 1, (cameraMode == FIRST_PERSON) ? "First person" : "Third person");
         updated |= ImGui::DragFloat("Focal Length", &focalLength, 0.1);
+        updated |= ImGui::SliderFloat("Theta", &theta, 0.0, (float)2*PI);
+        updated |= ImGui::SliderFloat("Phi", &phi, 0.0, (float)PI);
 
         if (cameraMode == Camera::FIRST_PERSON)
         {
@@ -124,8 +126,6 @@ public:
         }
         else if (cameraMode == Camera::THIRD_PERSON)
         {
-            updated |= ImGui::SliderFloat("Theta", &theta, 0.0, (float)2*PI);
-            updated |= ImGui::SliderFloat("Phi", &phi, 0.0, (float)PI);
             updated |= ImGui::DragFloat("Distance", &distance, 0.1);
         }
         
@@ -164,7 +164,7 @@ public:
 
         // Renderer zoom in (change in focal length)
         float yOffset = -ImGui::GetIO().MouseWheel;
-        if (yOffset)
+        if (yOffset && cameraMode != FIRST_PERSON)
         {
             float scale = (selectedSphere != NULL) ? selectedSphere->radius / 5.0 : 0.1;
             distance += yOffset * scale;
