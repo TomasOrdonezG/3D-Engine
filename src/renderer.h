@@ -39,8 +39,9 @@ public:
         camera.updateDimensions(windowAspectRatio);
 
         // Compile and link shader programs
-        rayTracingShader = Shader("./src/shaders/RayTracing.vert", "./src/shaders/RayTracing.frag");
-
+        rayTracingShader = Shader("./src/shaders/quad.vert", "./src/shaders/RayTracing.frag");
+        pbrShader = Shader("./src/shaders/quad.vert", "./src/shaders/pbr.frag");
+        activeRenderingShader = rayTracingShader;
         // // Create data UBO
         // glGenBuffers(1, &uboData);
         // glBindBuffer(GL_UNIFORM_BUFFER, uboData);
@@ -70,12 +71,12 @@ public:
         // TODO: Check if scene was updated (Once scene is moved to another class)
         
         // Set uniforms
-        camera.setUniforms(rayTracingShader, window);
+        camera.setUniforms(activeRenderingShader, window);
         setSceneUniforms();
         setSettingsUniforms(prevTextureUnit);
 
         // Render scene
-        rayTracingShader.use();
+        activeRenderingShader.use();
         quad->render();
 
         renderedFrameCount++;
@@ -103,18 +104,18 @@ public:
     {
         // TODO: Add all these uniforms in a UBO
         doTemporalAntiAliasing = skipAA ? --skipAA > 1 : doTAA;
-        rayTracingShader.setBool("doTemporalAntiAliasing", doTemporalAntiAliasing);
-        rayTracingShader.setBool("doGammaCorrection", doGammaCorrection);
-        rayTracingShader.setBool("test", test);
-        rayTracingShader.setBool("sky", sky);
+        activeRenderingShader.setBool("doTemporalAntiAliasing", doTemporalAntiAliasing);
+        activeRenderingShader.setBool("doGammaCorrection", doGammaCorrection);
+        activeRenderingShader.setBool("test", test);
+        activeRenderingShader.setBool("sky", sky);
 
         u_time = (float)glfwGetTime() / 1000.0f;
-        rayTracingShader.setFloat("u_time", u_time);
+        activeRenderingShader.setFloat("u_time", u_time);
 
-        rayTracingShader.setInt("maxRayBounce", maxRayBounce);
-        rayTracingShader.setInt("renderedFrameCount", renderedFrameCount);
-        rayTracingShader.setInt("samplesPerPixel", samplesPerPixel);
-        rayTracingShader.setInt("previousFrame", prevTextureUnit);
+        activeRenderingShader.setInt("maxRayBounce", maxRayBounce);
+        activeRenderingShader.setInt("renderedFrameCount", renderedFrameCount);
+        activeRenderingShader.setInt("samplesPerPixel", samplesPerPixel);
+        activeRenderingShader.setInt("previousFrame", prevTextureUnit);
     }
 
     void setSceneUniforms()
@@ -123,8 +124,8 @@ public:
         glBindBuffer(GL_UNIFORM_BUFFER, uboSpheres);
         glBufferSubData(GL_UNIFORM_BUFFER, 0, sizeof(Sphere)*spheres.size(), spheres.data());
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
-        rayTracingShader.setInt("spheresSize", spheres.size());
-        rayTracingShader.setInt("selectedSphere", selectedSphere);
+        activeRenderingShader.setInt("spheresSize", spheres.size());
+        activeRenderingShader.setInt("selectedSphere", selectedSphere);
     }
     
     void selectSphere(glm::ivec2 windowCoord)
@@ -208,7 +209,8 @@ public:
 private:
 
     // Shader programs
-    Shader rayTracingShader;
+    Shader rayTracingShader, pbrShader;
+    Shader activeRenderingShader;
     // GLuint uboData, uboDataBindingPoint = 0;
 
     // Sphere array implementation
@@ -229,8 +231,8 @@ private:
         glBindBuffer(GL_UNIFORM_BUFFER, 0);
 
         // Bind the sphere UBO to a binding point
-        GLuint blockIndex = glGetUniformBlockIndex(rayTracingShader.ID, "Spheres");
-        glUniformBlockBinding(rayTracingShader.ID, blockIndex, uboSpheresBindingPoint);
+        GLuint blockIndex = glGetUniformBlockIndex(activeRenderingShader.ID, "Spheres");
+        glUniformBlockBinding(activeRenderingShader.ID, blockIndex, uboSpheresBindingPoint);
         glBindBufferBase(GL_UNIFORM_BUFFER, uboSpheresBindingPoint, uboSpheres);
 
         // Create the world!
