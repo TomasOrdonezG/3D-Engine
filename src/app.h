@@ -167,9 +167,41 @@ private:
         updated |= ImGui::Checkbox("Sky", (bool*)&(renderer.sky));
         updated |= ImGui::Checkbox("Gamma Correct", (bool*)&(renderer.doGammaCorrection));
         updated |= ImGui::Checkbox("Temporal Anti-Aliasing", &(renderer.doTAA));
-
         updated |= ImGui::SliderInt("Max Tracing Depth", &(renderer.maxRayBounce), 1, 100);
-        updated |= ImGui::SliderInt("Samples per pixel", &(renderer.samplesPerPixel), 1, 20);
+
+        if (renderer.doTAA)
+        {
+            // We want this on when doing temporal anti aliasing
+            renderer.doPixelSampling = true;
+        }
+        else
+        {
+            updated |= ImGui::Checkbox("Pixel Sampling", (bool*)&(renderer.doPixelSampling));
+        }
+        
+        // Pixel sampling
+        if (renderer.doPixelSampling)
+        {
+            // Pick pixel sampling method
+            ImGui::SeparatorText("Pixel Sampling Method");
+            updated |= ImGui::RadioButton("Random point", &renderer.samplingMethod, 0); ImGui::SameLine();
+            updated |= ImGui::RadioButton("Jittered Grid", &renderer.samplingMethod, 1);
+
+            if (!renderer.doTAA)
+            {
+                // Don't give grid sampling as an option when temporal anti aliasing is on since it isn't not random
+                ImGui::SameLine();
+                updated |= ImGui::RadioButton("Grid", &renderer.samplingMethod, 2);
+            }
+            else if (renderer.samplingMethod == 2)
+            {
+                // If grid sampling, set to default random sampling method
+                renderer.samplingMethod = 0;
+            }
+
+            // Set number of pixel samples
+            updated |= ImGui::SliderInt("Samples per pixel", &(renderer.samplesPerPixel), 1, 20, renderer.samplingMethod == 1 ? "%d^2" : "%d");
+        }
 
         if (updated) renderer.onUpdate();
     }

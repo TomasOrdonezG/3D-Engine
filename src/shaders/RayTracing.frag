@@ -2,7 +2,7 @@
 
 // * Inputs / Outputs
 in vec2 TexCoords;
-out vec4 FragColor;
+out vec4 FragColour;
 
 // * Macrodefinitions
 #define FLOAT_MAX 3.402823466e+38
@@ -28,6 +28,8 @@ uniform vec3 pixelOrigin;
 
 // TODO: Renderer settings UBO
 uniform bool doTemporalAntiAliasing;
+uniform bool doPixelSampling;
+uniform int samplingMethod;
 uniform bool doGammaCorrection;
 uniform bool test;
 uniform bool sky;
@@ -43,8 +45,8 @@ uniform int spheresSize;
 uniform int selectedSphere;
 
 // * Spheres
-bool hitSphere(Sphere sphere, Ray ray, out RayHit hit) {
-
+bool hitSphere(Sphere sphere, Ray ray, out RayHit hit)
+{
     vec3 oc = sphere.position - ray.position;
     float a = dot(ray.direction, ray.direction);
     float h = dot(ray.direction, oc);
@@ -57,8 +59,8 @@ bool hitSphere(Sphere sphere, Ray ray, out RayHit hit) {
 
     // Find the nearest root that lies in the acceptable range.
     float root = (h - sqrtd) / a;
-    if (root <= 0.001 || FLOAT_MAX <= root) {
-    
+    if (root <= 0.001 || FLOAT_MAX <= root)
+    {
         root = (h + sqrtd) / a;
         if (root <= 0.001 || FLOAT_MAX <= root)
             return false;
@@ -76,46 +78,78 @@ bool hitSphere(Sphere sphere, Ray ray, out RayHit hit) {
 }
 
 // * Utility functions
-float rand(vec2 co) {
+float rand(vec2 co)
+{
     return fract(sin(dot(co.xy, vec2(12.9898, 78.233)) * u_time) * 43758.5453);
 }
-float rand() {
+
+float rand()
+{
     return fract(sin(dot(gl_FragCoord.xy, vec2(12.9898, 78.233)) * u_time) * 43758.5453);
 }
-vec2 boxMuller(vec2 u) {
+
+vec2 boxMuller(vec2 u)
+{
     float r = sqrt(-2.0 * log(u.x));
     float theta = 2.0 * PI * u.y;
     return r * vec2(cos(theta), sin(theta));
 }
-vec3 randGaussianVec() {
+
+vec3 randGaussianVec()
+{
     vec2 u1 = vec2(rand(gl_FragCoord.xy), rand(gl_FragCoord.yx));
     vec2 u2 = vec2(rand(gl_FragCoord.yx + 0.5), rand(gl_FragCoord.xy + 0.5));
     vec2 gauss1 = boxMuller(u1);
     vec2 gauss2 = boxMuller(u2);
     return vec3(gauss1.x, gauss1.y, gauss2.x);
 }
-vec3 randGaussianUnitVec() {
+
+vec3 randGaussianUnitVec()
+{
     return normalize(randGaussianVec());
 }
-vec3 randInHemisphere(vec3 normal) {
+
+vec3 randInHemisphere(vec3 normal)
+{
     vec3 randomDir = randGaussianUnitVec();
     return (dot(randomDir, normal) > 0.0) ? randomDir : -randomDir;
 }
-vec3 gammaCorrect(vec3 linear) {
+
+vec3 gammaCorrect(vec3 linear)
+{
     return vec3(sqrt(linear.x), sqrt(linear.y), sqrt(linear.z));
 }
 
-// * Ray tracing
-bool findClosestIntersection(Ray ray, out RayHit closestHit) {
+vec3 postProcess(vec3 colour)
+{
 
+    if (doGammaCorrection)
+    {
+        colour = gammaCorrect(colour);
+    }
+    
+    if (doTemporalAntiAliasing)
+    {
+        // Average colour with previous frame
+        vec3 prevColour = texture(previousFrame, TexCoords).xyz;
+        colour = mix(prevColour, colour, 1.0 / (renderedFrameCount + 1));
+    }
+
+    return colour;
+
+}
+
+// * Ray tracing
+bool findClosestIntersection(Ray ray, out RayHit closestHit)
+{
     bool doesHit = false;
     float lowest_t = FLOAT_MAX;
     
-    for (int i = 0; i < spheresSize; i++) {
-
+    for (int i = 0; i < spheresSize; i++)
+    {
         RayHit hit;
-        if (hitSphere(spheres[i], ray, hit)) {
-
+        if (hitSphere(spheres[i], ray, hit))
+        {
             doesHit = true;
             hit.selected = (selectedSphere == i);
             
@@ -130,30 +164,31 @@ bool findClosestIntersection(Ray ray, out RayHit closestHit) {
     return doesHit;
 }
 
-vec3 missColour(Ray ray, vec3 rayColour) {
-
-    if (sky) {
-
+vec3 missColour(Ray ray, vec3 rayColour)
+{
+    if (sky)
+    {
         vec3 unitDirection = normalize(ray.direction);
         float alpha = 0.5*(2*unitDirection.y + 1.0);
         return ((1.0 - alpha)*vec3(1.0) + alpha*vec3(0.5, 0.7, 1.0))*rayColour;
     }
-    else {
-
+    else
+    {
         return vec3(0.0)*rayColour;
     }
 }
 
-vec4 traceRay(Ray ray) {
-
+vec3 traceRay(Ray ray)
+{
     vec3 incomingColour = vec3(0.0);
     vec3 rayColour = vec3(1.0);
     
     RayHit hit;
     
-    for (int i = 0; i < maxRayBounce; i++) {
-
-        if (!findClosestIntersection(ray, hit)) {
+    for (int i = 0; i < maxRayBounce; i++)
+    {
+        if (!findClosestIntersection(ray, hit))
+        {
             incomingColour += missColour(ray, rayColour);
             break;
         }
@@ -170,31 +205,99 @@ vec4 traceRay(Ray ray) {
         ray.direction = mix(perfectReflection, randInHemisphere(hit.normal), material.roughness);
     }
 
-    return vec4(incomingColour, 1.0);
+    return incomingColour;
+}
+
+vec3 calculateColour(vec2 coord)
+{
+    vec3 pixelSample = pixelOrigin + (coord.x * pixelDH) + (coord.y * pixelDV);
+    Ray ray = Ray(lookfrom, pixelSample - lookfrom);
+    return traceRay(ray);
+}
+
+
+// * Pixel sampling methods
+vec3 randomPointSample()
+{
+    vec3 colour = vec3(0.0);
+    vec2 pixelCenter = gl_FragCoord.xy + 0.5;
+
+    for (int i = 0; i < samplesPerPixel; i++)
+    {
+        // Sample random window coords
+        vec2 offset = vec2(rand() - 0.5, rand() - 0.5);
+        vec2 sampledCoord = pixelCenter + offset;
+
+        // Calculate colour
+        colour += calculateColour(sampledCoord);
+    }
+
+    return colour / float(samplesPerPixel);
+}
+
+vec3 gridSample()
+{
+    vec3 colour = vec3(0.0);
+
+    for (int i = 0; i < samplesPerPixel; i++)
+    {
+        for (int j = 0; j < samplesPerPixel; j++)
+        {
+            // Sample random window coords
+            vec2 offset = (vec2(i, j) + 0.5) / float(samplesPerPixel);
+            vec2 sampledCoord = gl_FragCoord.xy + offset;
+
+            // Calculate colour
+            colour += calculateColour(sampledCoord);
+        }
+    }
+
+    return colour / float(samplesPerPixel*samplesPerPixel);
+}
+
+vec3 jitteredGridSample()
+{
+    vec3 colour = vec3(0.0);
+
+    for (int i = 0; i < samplesPerPixel; i++)
+    {
+        for (int j = 0; j < samplesPerPixel; j++)
+        {
+            // Sample random window coords with jitter
+            vec2 offset = (vec2(i, j) + vec2(rand(), rand())) / float(samplesPerPixel);
+            vec2 sampledCoord = gl_FragCoord.xy + offset;
+
+            // Calculate colour
+            colour += calculateColour(sampledCoord);
+        }
+    }
+
+    return colour / float(samplesPerPixel*samplesPerPixel);
 }
 
 // * Main
-void main() {
 
-    // Create ray from camera
-    vec4 currentColour = vec4(0.0);
-    for (int i = 0; i < samplesPerPixel; i++) {
+void main()
+{
 
-        // Create ray from window coordinates
-        vec2 pos = vec2(gl_FragCoord.x, gl_FragCoord.y);
-        vec3 offset = vec3(rand() - 0.5, rand() - 0.5, 0.0);
-        vec3 pixelSample = pixelOrigin + ((pos.x + offset.x) * pixelDH) + ((pos.y + offset.y) * pixelDV);
-        Ray ray = Ray(lookfrom, pixelSample - lookfrom);
+    vec3 currentColour;
 
-        // Calculate ray colour
-        currentColour += traceRay(ray);
+    if (doTemporalAntiAliasing || doPixelSampling)
+    {
+        // Sample pixel based on some sampling method
+        if (samplingMethod == 0)
+            currentColour = randomPointSample();
+        else if (samplingMethod == 1)
+            currentColour = jitteredGridSample();
+        else if (samplingMethod == 2)
+            currentColour = gridSample();
     }
-    currentColour /= samplesPerPixel;
-    currentColour = doGammaCorrection ? vec4(gammaCorrect(currentColour.xyz), 1.0) : currentColour;
+    else
+    {
+        // No sampling, calculate colour at the pixel's center
+        currentColour = calculateColour(gl_FragCoord.xy + 0.5);
+    }
 
-    // Output averaged colour
-    if (doTemporalAntiAliasing) {
-        vec4 previousColour = texture(previousFrame, TexCoords);
-        FragColor = mix(previousColour, currentColour, 1.0 / (renderedFrameCount + 1));
-    } else FragColor = currentColour;
+    currentColour = postProcess(currentColour);
+    FragColour = vec4(currentColour, 1.0);
 }

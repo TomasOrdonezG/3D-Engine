@@ -28,6 +28,8 @@ public:
     int test = 0;
     int doGammaCorrection = 1;
     int doTemporalAntiAliasing = 1;
+    int samplingMethod = 0;
+    bool doPixelSampling = true;
 
     // States
     bool doTAA = true;
@@ -104,15 +106,17 @@ public:
     {
         // TODO: Add all these uniforms in a UBO
         doTemporalAntiAliasing = skipAA ? --skipAA > 1 : doTAA;
-        activeRenderingShader.setBool("doTemporalAntiAliasing", doTemporalAntiAliasing);
-        activeRenderingShader.setBool("doGammaCorrection", doGammaCorrection);
-        activeRenderingShader.setBool("test", test);
         activeRenderingShader.setBool("sky", sky);
+        activeRenderingShader.setBool("test", test);
+        activeRenderingShader.setBool("doPixelSampling", doPixelSampling);
+        activeRenderingShader.setBool("doGammaCorrection", doGammaCorrection);
+        activeRenderingShader.setBool("doTemporalAntiAliasing", doTemporalAntiAliasing);
 
         u_time = (float)glfwGetTime() / 1000.0f;
         activeRenderingShader.setFloat("u_time", u_time);
 
         activeRenderingShader.setInt("maxRayBounce", maxRayBounce);
+        activeRenderingShader.setInt("samplingMethod", samplingMethod);
         activeRenderingShader.setInt("renderedFrameCount", renderedFrameCount);
         activeRenderingShader.setInt("samplesPerPixel", samplesPerPixel);
         activeRenderingShader.setInt("previousFrame", prevTextureUnit);
