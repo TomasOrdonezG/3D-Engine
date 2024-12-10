@@ -1,11 +1,12 @@
 #ifndef APP_H
 #define APP_H
 
-#include <glad/glad.h>
+#include <GL/glew.h>
+#include <GL/glext.h>
 #include <GLFW/glfw3.h>
-#include <imgui/imgui.h>
-#include <imgui/imgui_impl_glfw.h>
-#include <imgui/imgui_impl_opengl3.h>
+#include "imgui/imgui.h"
+#include "imgui/imgui_impl_glfw.h"
+#include "imgui/imgui_impl_opengl3.h"
 #include <iostream>
 #include <stdio.h>
 #include <vector>
@@ -44,8 +45,9 @@ public:
         glfwMakeContextCurrent(window);
         glfwSwapInterval(1);  // Enable vsync
 
-        // Initialize GLAD
-        gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+        // Initialize GLAD/GLEW
+        // gladLoadGLLoader((GLADloadproc)glfwGetProcAddress);
+        glewInit();
         
         // Enable blending
         glEnable(GL_BLEND);
@@ -101,7 +103,7 @@ public:
                 glBindTexture(GL_TEXTURE_2D, 0);
                 
                 // Display current texture on ImGui window
-                ImGui::ImageButton((void*)sceneWindow.textures[pingpong], ImVec2(sceneWindow.width, sceneWindow.height), ImVec2(0, 1), ImVec2(1, 0), 0);
+                ImGui::ImageButton((GLuint*)(GLuint64)sceneWindow.textures[pingpong], ImVec2(sceneWindow.width, sceneWindow.height), ImVec2(0, 1), ImVec2(1, 0), 0);
                 
                 // Swap pingpong boolean for the next iteration
                 pingpong = !pingpong;

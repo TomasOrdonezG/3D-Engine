@@ -1,7 +1,7 @@
 #ifndef FULL_QUAD_H
 #define FULL_QUAD_H
 
-#include <glad/glad.h>
+#include <GL/glew.h>
 #include "shader.h"
 
 class FullQuad
